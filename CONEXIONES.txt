@@ -1,0 +1,168 @@
+/*
+ * DIAGRAMA DE CONEXIONES
+ * CNC Controller - ESP32 S3
+ * 
+ * ============================================
+ * CONEXIÓN MOTORES (3x ULN2003 + 28BYJ-48)
+ * ============================================
+ * 
+ * MOTOR X (Eje Horizontal - Izquierda/Derecha)
+ * ┌─────────────────┐
+ * │   ULN2003 #1   │
+ * │   [Motor X]    │
+ * ├─────────────────┤
+ * │ IN1 → GPIO 12  │
+ * │ IN2 → GPIO 13  │
+ * │ IN3 → GPIO 14  │
+ * │ IN4 → GPIO 15  │
+ * │ VCC → 5V       │
+ * │ GND → GND      │
+ * └─────────────────┘
+ * 
+ * MOTOR Y (Eje Vertical - Adelante/Atrás)
+ * ┌─────────────────┐
+ * │   ULN2003 #2   │
+ * │   [Motor Y]    │
+ * ├─────────────────┤
+ * │ IN1 → GPIO 16  │
+ * │ IN2 → GPIO 17  │
+ * │ IN3 → GPIO 18  │
+ * │ IN4 → GPIO 19  │
+ * │ VCC → 5V       │
+ * │ GND → GND      │
+ * └─────────────────┘
+ * 
+ * MOTOR Z (Lápiz - Arriba/Abajo)
+ * ┌─────────────────┐
+ * │   ULN2003 #3   │
+ * │   [Motor Z]    │
+ * ├─────────────────┤
+ * │ IN1 → GPIO 21  │
+ * │ IN2 → GPIO 47  │
+ * │ IN3 → GPIO 48  │
+ * │ IN4 → GPIO 45  │
+ * │ VCC → 5V       │
+ * │ GND → GND      │
+ * └─────────────────┘
+ * 
+ * ============================================
+ * CONEXIÓN IMU MPU6050
+ * ============================================
+ * 
+ * IMU MPU6050 (I2C)
+ * ┌─────────────────┐
+ * │    MPU6050     │
+ * │   (6-axis)     │
+ * ├─────────────────┤
+ * │ VCC → 3.3V     │  ⚠️ IMPORTANTE: 3.3V no 5V
+ * │ GND → GND      │
+ * │ SCL → GPIO 10  │  ⚠️ Cambiado: GPIO 10 (antes era GPIO 9)
+ * │ SDA → GPIO 8   │
+ * └─────────────────┘
+ * 
+ * Ubicación: Montado junto al Motor Z (lápiz)
+ * Propósito: Detectar inclinación y corregir posición
+ * 
+ * ============================================
+ * ALIMENTACIÓN
+ * ============================================
+ * 
+ * OPCIÓN 1: Alimentación separada (RECOMENDADO)
+ * ┌──────────────┐
+ * │ ESP32 S3     │ ← USB 5V
+ * └──────────────┘
+ * 
+ * ┌──────────────┐
+ * │ Fuente 5V/2A │ ← 3x Motores (hasta 720mA)
+ * └──────────────┘
+ *    ↓
+ * ULN2003 x3
+ * 
+ * OPCIÓN 2: Alimentación única (para pruebas)
+ * USB 5V → ESP32 S3 → VIN → Motores
+ * ⚠️ Solo si USB puede dar 1A+
+ * 
+ * ============================================
+ * ESQUEMA COMPLETO
+ * ============================================
+ * 
+ *                    ┌─────────────────────┐
+ *                    │     ESP32 S3        │
+ *                    │                     │
+ *        ┌───────────┤ GPIO 12,13,14,15   ├────→ [Motor X]
+ *        │           │                     │
+ *        │  ┌────────┤ GPIO 16,17,18,19   ├────→ [Motor Y]
+ *        │  │        │                     │
+ *        │  │  ┌─────┤ GPIO 21,47,48,45   ├────→ [Motor Z]
+ *        │  │  │     │                     │      + MPU6050
+ *        │  │  │     │ GPIO 8,9 (I2C)     ├────→ MPU6050
+ *        │  │  │     │                     │
+ *        │  │  │     │ USB-C              │ ←─── PC/Laptop
+ *        │  │  │     └─────────────────────┘
+ *        │  │  │
+ *        ▼  ▼  ▼
+ *     ┌───────────┐
+ *     │  5V Power │
+ *     │  Supply   │
+ *     └───────────┘
+ * 
+ * ============================================
+ * NOTAS IMPORTANTES
+ * ============================================
+ * 
+ * 1. TIERRA COMÚN:
+ *    - Todos los GND deben estar conectados
+ *    - ESP32 GND = Motores GND = Fuente GND
+ * 
+ * 2. VOLTAJES:
+ *    - Motores 28BYJ-48: 5V DC
+ *    - MPU6050: 3.3V DC ⚠️
+ *    - ESP32 S3: 3.3V logic
+ * 
+ * 3. CORRIENTE:
+ *    - Cada motor: ~240mA
+ *    - Total 3 motores: ~720mA
+ *    - Fuente recomendada: 5V/2A mínimo
+ * 
+ * 4. CABLES:
+ *    - Usar cables cortos (<30cm) para reducir ruido
+ *    - Cable de tierra más grueso si es posible
+ * 
+ * 5. MONTAJE MPU6050:
+ *    - Montar rígidamente junto al motor Z
+ *    - Alinear ejes X,Y del sensor con ejes X,Y de la CNC
+ *    - Proteger de vibraciones excesivas
+ * 
+ * ============================================
+ * CONFIGURACIÓN I2C
+ * ============================================
+ * 
+ * Address MPU6050: 0x68 (default)
+ * Speed: 400kHz (Fast Mode)
+ * Pull-ups: 4.7kΩ internos del ESP32
+ * 
+ * ============================================
+ * LEDs INDICADORES (ULN2003)
+ * ============================================
+ * 
+ * Cada driver ULN2003 tiene 4 LEDs:
+ * - Encienden cuando el bobinado está activo
+ * - Patrón rotativo cuando motor gira
+ * - Si LED no enciende = mal contacto o pin equivocado
+ * 
+ * ============================================
+ * PRUEBAS INICIALES
+ * ============================================
+ * 
+ * 1. Verificar conexiones con multímetro
+ * 2. Subir código y abrir Monitor Serial (115200)
+ * 3. Enviar comando 'X' para probar motor X
+ * 4. Enviar comando 'Y' para probar motor Y
+ * 5. Enviar comando 'Z' para probar motor Z
+ * 6. Enviar comando 'I' para ver datos IMU
+ * 7. Enviar comando 'S' para dibujar cuadrado
+ * 
+ */
+
+// Este archivo es solo documentación
+// No se compila, es referencia para el hardware
