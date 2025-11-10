@@ -209,11 +209,22 @@ void setup() {
 // LOOP
 // ============================================
 
+String commandBuffer = "";
+
 void loop() {
-  if (Serial.available()) {
-    char cmd = Serial.read();
-    if (cmd != '\n' && cmd != '\r') {
-      processCommand(cmd);
+  // Leer comandos completos desde el puerto serial
+  while (Serial.available()) {
+    char c = Serial.read();
+    
+    if (c == '\n' || c == '\r') {
+      // Fin de comando
+      if (commandBuffer.length() > 0) {
+        processCommand(commandBuffer);
+        commandBuffer = "";
+      }
+    } else {
+      // Acumular caracteres
+      commandBuffer += c;
     }
   }
   delay(10);
@@ -1027,11 +1038,47 @@ void testAreaCompleta() {
 // PROCESAR COMANDOS
 // ============================================
 
-void processCommand(char cmd) {
-  cmd = toupper(cmd);
-  Serial.print("\n> ");
-  Serial.println(cmd);
+void processCommand(String command) {
+  command.trim();  // Eliminar espacios
+  command.toUpperCase();  // Convertir a mayúsculas
   
+  if (command.length() == 0) return;
+  
+  Serial.print("\n> ");
+  Serial.println(command);
+  
+  char cmd = command.charAt(0);  // Primer carácter
+  
+  // Comandos con parámetros numéricos (X100, Y-50, Z20, etc.)
+  if (command.length() > 1 && (cmd == 'X' || cmd == 'Y' || cmd == 'Z')) {
+    int value = command.substring(1).toInt();
+    
+    switch(cmd) {
+      case 'X':
+        Serial.print("Moviendo X: ");
+        Serial.print(value);
+        Serial.println(" pasos");
+        moveX(value);
+        break;
+        
+      case 'Y':
+        Serial.print("Moviendo Y: ");
+        Serial.print(value);
+        Serial.println(" pasos");
+        moveY(value);
+        break;
+        
+      case 'Z':
+        Serial.print("Moviendo Z: ");
+        Serial.print(value);
+        Serial.println(" pasos");
+        moveZ(value);
+        break;
+    }
+    return;
+  }
+  
+  // Comandos simples (sin parámetros)
   switch(cmd) {
     case 'X': testMotorX(); break;
     case 'Y': testMotorY(); break;
@@ -1040,11 +1087,11 @@ void processCommand(char cmd) {
     case 'H': goHome(); break;
     case 'P': printPosition(); break;
     case 'C': calibrateXWithIMU(); break;  // Calibrar eje X con IMU
-    case 'D': calibrateYWithIMU(); break;  // Calibrar eje Y con IMU (nota: D está duplicado)
+    case 'D': calibrateYWithIMU(); break;  // Calibrar eje Y con IMU
     case 'A': testAreaCompleta(); break;   // Test área completa
     case 'I': printIMUData(); break;       // Ver datos IMU
     case 'U': penUp(); break;              // ⬆️ SUBIR lápiz
-    case 'B': penDown(); break;            // ⬇️ BAJAR lápiz (B en vez de D porque D es calibrar Y)
+    case 'B': penDown(); break;            // ⬇️ BAJAR lápiz
     case 'R': releasePenMotor(); break;    // 🔌 Liberar motor Z
     default:
       Serial.println("\n╔════════════════════════════════════╗");
@@ -1054,6 +1101,9 @@ void processCommand(char cmd) {
       Serial.println("  X = Test Motor X");
       Serial.println("  Y = Test Motor Y");
       Serial.println("  Z = Test Motor Z");
+      Serial.println("  X<n> = Mover X n pasos (ej: X100, X-50)");
+      Serial.println("  Y<n> = Mover Y n pasos (ej: Y200, Y-100)");
+      Serial.println("  Z<n> = Mover Z n pasos (ej: Z50, Z-25)");
       Serial.println();
       Serial.println("🎨 DIBUJO:");
       Serial.println("  S = Cuadrado");
