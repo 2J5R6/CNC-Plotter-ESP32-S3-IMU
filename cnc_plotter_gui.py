@@ -276,12 +276,19 @@ class CNCPlotterGUI:
         for y in range(0, self.canvas_height + 1, grid_spacing):
             self.canvas.create_line(0, y, self.canvas_width, y, fill=self.grid_color, width=1)
         
-        # 🆕 Dibujar origen según detección automática
-        if not self.origin_detected:
-            # Sin calibración: mostrar mensaje en el centro
+        # 🆕 Mostrar mensaje según estado
+        if not self.is_connected:
+            # No conectado: mensaje de conexión
             self.canvas.create_text(self.canvas_width/2, self.canvas_height/2,
-                                   text="⚠️ Calibra primero\n🔍 Usa AUTO-DETECTAR ORIGEN",
-                                   fill='#ffaa00', font=('Arial', 14, 'bold'))
+                                   text="🔌 Conecta tu ESP32 primero\n\nSelecciona el puerto COM\ny haz clic en 'Conectar'",
+                                   fill='#888888', font=('Arial', 12))
+            return
+        
+        if not self.origin_detected:
+            # Conectado pero sin calibrar: mensaje de calibración
+            self.canvas.create_text(self.canvas_width/2, self.canvas_height/2,
+                                   text="⚙️ Calibra el CNC\n\n🔍 Usa 'AUTO-DETECTAR ORIGEN'\nen el menú Calibrar",
+                                   fill='#ffaa00', font=('Arial', 12, 'bold'))
             return
         
         # Determinar posición del origen según esquina detectada
@@ -346,6 +353,10 @@ class CNCPlotterGUI:
                 self.btn_draw.config(state=tk.NORMAL)
                 self.log(f"✓ Conectado a {port}")
                 
+                # 🆕 Actualizar canvas para mostrar mensaje de calibración
+                self.canvas.delete('all')
+                self.draw_grid()
+                
                 # Iniciar hilo de lectura
                 threading.Thread(target=self.read_serial, daemon=True).start()
                 
@@ -360,6 +371,10 @@ class CNCPlotterGUI:
             self.lbl_status.config(text="⭕ Desconectado", fg='#ff6666')
             self.btn_draw.config(state=tk.DISABLED)
             self.log("✓ Desconectado")
+            
+            # 🆕 Actualizar canvas para mostrar mensaje de conexión
+            self.canvas.delete('all')
+            self.draw_grid()
     
     def send_command(self, command):
         """Enviar comando al CNC"""
@@ -420,10 +435,11 @@ class CNCPlotterGUI:
         🆕 CONVERSIÓN DINÁMICA según origen detectado automáticamente
         """
         if not self.origin_detected:
-            # Sin calibración, asumir top-left (estándar)
-            messagebox.showwarning("Sin Calibración", 
-                                  "Calibra el CNC primero usando AUTO-DETECTAR ORIGEN")
-            return 0, 0
+            # Sin calibración: usar origen top-left por defecto para visualización
+            # (no mostrar advertencia aquí, solo al intentar dibujar)
+            x_mm = px / self.scale_factor
+            y_mm = py / self.scale_factor
+            return x_mm, y_mm
         
         # Convertir según la esquina de origen detectada
         if self.origin_corner == "top-left":
@@ -496,6 +512,17 @@ class CNCPlotterGUI:
         
         if not self.is_connected:
             messagebox.showerror("Error", "Conecta al CNC primero")
+            return
+        
+        # ✅ Verificar calibración antes de dibujar
+        if not self.origin_detected:
+            messagebox.showerror("Sin Calibración", 
+                               "⚠️ Debes calibrar el CNC primero!\n\n"
+                               "1. Haz clic en '⚙️ Calibrar'\n"
+                               "2. Presiona el botón verde '🔍 AUTO-DETECTAR ORIGEN'\n"
+                               "3. Espera a que termine la calibración\n"
+                               "4. Selecciona la esquina correcta\n\n"
+                               "Esto asegura que tu dibujo salga correctamente orientado.")
             return
         
         self.is_drawing = True
