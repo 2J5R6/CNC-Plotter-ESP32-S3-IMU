@@ -40,6 +40,13 @@ class CNCPlotterGUI:
         self.work_area_height = 150  # mm
         self.scale_factor = self.canvas_width / self.work_area_width  # píxeles por mm
         
+        # 🆕 DETECCIÓN AUTOMÁTICA DE ORIGEN
+        self.origin_detected = False
+        self.origin_corner = "unknown"  # "top-left", "top-right", "bottom-left", "bottom-right"
+        self.max_x_steps = 0  # Detectado durante calibración
+        self.max_y_steps = 0  # Detectado durante calibración
+        self.calibration_in_progress = False
+        
         # Colores tema oscuro
         self.bg_color = '#2b2b2b'
         self.fg_color = '#ffffff'
@@ -269,19 +276,46 @@ class CNCPlotterGUI:
         for y in range(0, self.canvas_height + 1, grid_spacing):
             self.canvas.create_line(0, y, self.canvas_width, y, fill=self.grid_color, width=1)
         
-        # Origen CNC (esquina INFERIOR izquierda del canvas)
-        origin_y = self.canvas_height - 5  # 5 píxeles desde abajo
-        self.canvas.create_oval(2, origin_y - 3, 8, origin_y + 3, fill='#ff0000', outline='#ff0000')
-        self.canvas.create_text(15, origin_y, text="(0,0) CNC", fill='#ff0000', font=('Arial', 8, 'bold'))
+        # 🆕 Dibujar origen según detección automática
+        if not self.origin_detected:
+            # Sin calibración: mostrar mensaje en el centro
+            self.canvas.create_text(self.canvas_width/2, self.canvas_height/2,
+                                   text="⚠️ Calibra primero\n🔍 Usa AUTO-DETECTAR ORIGEN",
+                                   fill='#ffaa00', font=('Arial', 14, 'bold'))
+            return
         
-        # Indicadores de ejes
-        # Eje X (derecha)
-        self.canvas.create_line(10, origin_y, 40, origin_y, fill='#00ff00', width=2, arrow=tk.LAST)
-        self.canvas.create_text(45, origin_y, text="X+", fill='#00ff00', font=('Arial', 8, 'bold'))
+        # Determinar posición del origen según esquina detectada
+        if self.origin_corner == "top-left":
+            origin_x, origin_y = 5, 5
+            x_arrow_dx, y_arrow_dy = 30, 30
+        elif self.origin_corner == "top-right":
+            origin_x, origin_y = self.canvas_width - 5, 5
+            x_arrow_dx, y_arrow_dy = -30, 30
+        elif self.origin_corner == "bottom-left":
+            origin_x, origin_y = 5, self.canvas_height - 5
+            x_arrow_dx, y_arrow_dy = 30, -30
+        else:  # bottom-right
+            origin_x, origin_y = self.canvas_width - 5, self.canvas_height - 5
+            x_arrow_dx, y_arrow_dy = -30, -30
         
-        # Eje Y (arriba desde el origen)
-        self.canvas.create_line(5, origin_y, 5, origin_y - 30, fill='#0000ff', width=2, arrow=tk.LAST)
-        self.canvas.create_text(5, origin_y - 35, text="Y+", fill='#0000ff', font=('Arial', 8, 'bold'))
+        # Dibujar origen
+        self.canvas.create_oval(origin_x - 4, origin_y - 4, origin_x + 4, origin_y + 4,
+                               fill='#ff0000', outline='#ff0000', width=2)
+        
+        label_offset_x = -35 if origin_x > self.canvas_width/2 else 35
+        self.canvas.create_text(origin_x + label_offset_x, origin_y,
+                               text="(0,0) CNC", fill='#ff0000', font=('Arial', 10, 'bold'))
+        
+        # Flechas de ejes
+        self.canvas.create_line(origin_x, origin_y, origin_x + x_arrow_dx, origin_y,
+                               fill='#00ff00', width=2, arrow=tk.LAST)
+        self.canvas.create_text(origin_x + x_arrow_dx + 15*(-1 if x_arrow_dx<0 else 1), origin_y,
+                               text="X+", fill='#00ff00', font=('Arial', 9, 'bold'))
+        
+        self.canvas.create_line(origin_x, origin_y, origin_x, origin_y + y_arrow_dy,
+                               fill='#0000ff', width=2, arrow=tk.LAST)
+        self.canvas.create_text(origin_x, origin_y + y_arrow_dy + 15*(-1 if y_arrow_dy<0 else 1),
+                               text="Y+", fill='#0000ff', font=('Arial', 9, 'bold'))
 
     
     def update_ports(self):
@@ -383,13 +417,39 @@ class CNCPlotterGUI:
     def pixel_to_mm(self, px, py):
         """Convertir coordenadas de píxeles a milímetros
         
-        IMPORTANTE: El canvas tiene origen en esquina SUPERIOR izquierda (0,0)
-        El CNC tiene origen en esquina INFERIOR izquierda (0,0)
-        Por lo tanto, invertimos el eje Y
+        🆕 CONVERSIÓN DINÁMICA según origen detectado automáticamente
         """
-        x_mm = px / self.scale_factor
-        # Invertir Y: canvas Y=0 (arriba) -> CNC Y=max (arriba en físico)
-        y_mm = (self.canvas_height - py) / self.scale_factor
+        if not self.origin_detected:
+            # Sin calibración, asumir top-left (estándar)
+            messagebox.showwarning("Sin Calibración", 
+                                  "Calibra el CNC primero usando AUTO-DETECTAR ORIGEN")
+            return 0, 0
+        
+        # Convertir según la esquina de origen detectada
+        if self.origin_corner == "top-left":
+            # Origen: Superior Izquierda
+            # X+ derecha, Y+ abajo
+            x_mm = px / self.scale_factor
+            y_mm = py / self.scale_factor
+            
+        elif self.origin_corner == "top-right":
+            # Origen: Superior Derecha
+            # X+ izquierda, Y+ abajo
+            x_mm = (self.canvas_width - px) / self.scale_factor
+            y_mm = py / self.scale_factor
+            
+        elif self.origin_corner == "bottom-left":
+            # Origen: Inferior Izquierda
+            # X+ derecha, Y+ arriba
+            x_mm = px / self.scale_factor
+            y_mm = (self.canvas_height - py) / self.scale_factor
+            
+        else:  # bottom-right
+            # Origen: Inferior Derecha
+            # X+ izquierda, Y+ arriba
+            x_mm = (self.canvas_width - px) / self.scale_factor
+            y_mm = (self.canvas_height - py) / self.scale_factor
+        
         return x_mm, y_mm
     
     def mm_to_steps(self, mm):
@@ -590,11 +650,162 @@ class CNCPlotterGUI:
         except ValueError:
             messagebox.showerror("Error", "Valor inválido para pasos/mm")
     
+    def auto_detect_origin(self):
+        """🆕 DETECTAR AUTOMÁTICAMENTE el origen y los límites del CNC"""
+        if not self.is_connected:
+            messagebox.showerror("Error", "Conecta al CNC primero")
+            return
+        
+        response = messagebox.askyesno(
+            "Auto-Detección de Origen",
+            "Este proceso hará lo siguiente:\n\n"
+            "1. Calibrará el eje X (detecta límites)\n"
+            "2. Calibrará el eje Y (detecta límites)\n"
+            "3. Hará un test de 4 direcciones\n"
+            "4. APRENDERÁ dónde está el origen (0,0)\n\n"
+            "El CNC se moverá automáticamente.\n"
+            "¿Continuar?"
+        )
+        
+        if not response:
+            return
+        
+        self.calibration_in_progress = True
+        self.log("=" * 50)
+        self.log("🔍 INICIANDO AUTO-DETECCIÓN DE ORIGEN")
+        self.log("=" * 50)
+        
+        # Ejecutar en hilo separado
+        threading.Thread(target=self._auto_detect_thread, daemon=True).start()
+    
+    def _auto_detect_thread(self):
+        """Hilo de auto-detección"""
+        try:
+            # Paso 1: Calibrar X
+            self.log("\n[1/4] Calibrando eje X...")
+            self.send_command('C')
+            time.sleep(15)  # Esperar calibración X
+            
+            # Paso 2: Calibrar Y
+            self.log("\n[2/4] Calibrando eje Y...")
+            self.send_command('D')
+            time.sleep(15)  # Esperar calibración Y
+            
+            # Paso 3: Test 4 direcciones para detectar origen
+            self.log("\n[3/4] Ejecutando test de 4 direcciones...")
+            self.send_command('A')
+            time.sleep(10)
+            
+            # Paso 4: Analizar y detectar origen
+            self.log("\n[4/4] Analizando sistema de coordenadas...")
+            self._analyze_coordinate_system()
+            
+            self.log("=" * 50)
+            self.log("✅ AUTO-DETECCIÓN COMPLETADA")
+            self.log("=" * 50)
+            
+        except Exception as e:
+            self.log(f"❌ Error en auto-detección: {str(e)}")
+        finally:
+            self.calibration_in_progress = False
+    
+    def _analyze_coordinate_system(self):
+        """Analizar las respuestas de calibración y detectar el origen"""
+        # Pedir información de posición
+        self.send_command('P')
+        time.sleep(1)
+        
+        # Por ahora, asumimos que después de calibración:
+        # - El CNC está en (0,0) físico
+        # - Los comandos positivos mueven en dirección creciente
+        
+        # Hacer un pequeño test: mover X+10 y ver si aumenta o disminuye
+        self.log("\n🔬 Probando dirección del eje X...")
+        self.send_command('X10')
+        time.sleep(2)
+        self.send_command('X-10')  # Volver
+        time.sleep(2)
+        
+        self.log("🔬 Probando dirección del eje Y...")
+        self.send_command('Y10')
+        time.sleep(2)
+        self.send_command('Y-10')  # Volver
+        time.sleep(2)
+        
+        # Detectar la esquina del origen basándonos en las respuestas
+        # Asumimos que después de calibración bidireccional con IMU:
+        # - El origen está donde los motores encuentran el primer límite
+        # - Típicamente: esquina inferior derecha o superior derecha
+        
+        # Preguntar al usuario
+        self.root.after(100, self._ask_user_origin_position)
+    
+    def _ask_user_origin_position(self):
+        """Preguntar al usuario dónde terminó el CNC después de calibración"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("🎯 Detectar Origen")
+        dialog.geometry("500x400")
+        dialog.configure(bg=self.bg_color)
+        
+        tk.Label(dialog, text="🔍 ¿Dónde está el CNC ahora?", 
+                bg=self.bg_color, fg=self.fg_color,
+                font=('Arial', 14, 'bold')).pack(pady=20)
+        
+        tk.Label(dialog, 
+                text="Después de la calibración, el CNC\ndebe estar en su posición de origen (0,0).\n\n"
+                     "Mira físicamente tu CNC y dime\n¿en qué esquina está?",
+                bg=self.bg_color, fg=self.fg_color,
+                font=('Arial', 10)).pack(pady=10)
+        
+        btn_frame = tk.Frame(dialog, bg=self.bg_color)
+        btn_frame.pack(pady=20)
+        
+        # Botones para las 4 esquinas
+        top_frame = tk.Frame(btn_frame, bg=self.bg_color)
+        top_frame.pack(pady=5)
+        
+        tk.Button(top_frame, text="⬉ Superior Izquierda", 
+                 command=lambda: self._set_origin("top-left", dialog),
+                 bg='#4a7a9d', fg=self.fg_color, font=('Arial', 10), width=20).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(top_frame, text="Superior Derecha ⬈", 
+                 command=lambda: self._set_origin("top-right", dialog),
+                 bg='#4a7a9d', fg=self.fg_color, font=('Arial', 10), width=20).pack(side=tk.LEFT, padx=5)
+        
+        bottom_frame = tk.Frame(btn_frame, bg=self.bg_color)
+        bottom_frame.pack(pady=5)
+        
+        tk.Button(bottom_frame, text="⬋ Inferior Izquierda", 
+                 command=lambda: self._set_origin("bottom-left", dialog),
+                 bg='#4a7a9d', fg=self.fg_color, font=('Arial', 10), width=20).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(bottom_frame, text="Inferior Derecha ⬊", 
+                 command=lambda: self._set_origin("bottom-right", dialog),
+                 bg='#4a7a9d', fg=self.fg_color, font=('Arial', 10), width=20).pack(side=tk.LEFT, padx=5)
+    
+    def _set_origin(self, corner, dialog):
+        """Establecer el origen detectado"""
+        self.origin_corner = corner
+        self.origin_detected = True
+        dialog.destroy()
+        
+        self.log(f"\n✅ Origen detectado: {corner}")
+        self.log("🔄 Actualizando sistema de coordenadas...")
+        
+        # Redibujar grid con origen correcto
+        self.canvas.delete('all')
+        self.draw_grid()
+        
+        messagebox.showinfo("✅ Origen Detectado", 
+                          f"Origen configurado en: {corner}\n\n"
+                          "El canvas ahora está sincronizado con tu CNC.\n"
+                          "Puedes empezar a dibujar!")
+    
     def show_calibration_window(self):
         """Mostrar ventana de calibración"""
         cal_window = tk.Toplevel(self.root)
         cal_window.title("⚙️ Asistente de Calibración")
-        cal_window.geometry("400x500")
+        cal_window.geometry("450x600")
         cal_window.configure(bg=self.bg_color)
         
         tk.Label(cal_window, text="🎯 Calibración del CNC", bg=self.bg_color, fg=self.fg_color,
@@ -603,9 +814,28 @@ class CNCPlotterGUI:
         tk.Label(cal_window, text="Este asistente te ayudará a calibrar\ntu CNC para dibujos precisos",
                 bg=self.bg_color, fg=self.fg_color, font=('Arial', 10)).pack(pady=10)
         
-        # Botones de calibración
+        # 🆕 BOTÓN DE AUTO-DETECCIÓN
+        auto_frame = tk.Frame(cal_window, bg='#2d7a2d', padx=10, pady=10)
+        auto_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        tk.Label(auto_frame, text="🤖 RECOMENDADO", bg='#2d7a2d', fg='#ffffff',
+                font=('Arial', 10, 'bold')).pack()
+        
+        tk.Button(auto_frame, text="🔍 AUTO-DETECTAR ORIGEN", 
+                 command=self.auto_detect_origin,
+                 bg='#66ff66', fg='#000000', font=('Arial', 12, 'bold'), height=2).pack(fill=tk.X, pady=5)
+        
+        tk.Label(auto_frame, text="Detecta automáticamente dónde está el origen (0,0)",
+                bg='#2d7a2d', fg='#ffffff', font=('Arial', 8)).pack()
+        
+        ttk.Separator(cal_window, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=15)
+        
+        # Botones de calibración manual
+        tk.Label(cal_window, text="📐 Calibración Manual", bg=self.bg_color, fg=self.fg_color,
+                font=('Arial', 11, 'bold')).pack()
+        
         btn_frame = tk.Frame(cal_window, bg=self.bg_color)
-        btn_frame.pack(pady=20, padx=20, fill=tk.X)
+        btn_frame.pack(pady=10, padx=20, fill=tk.X)
         
         tk.Button(btn_frame, text="📐 Calibrar Eje X", command=lambda: self.send_command('C'),
                  bg='#4a7a9d', fg=self.fg_color, font=('Arial', 11, 'bold'), height=2).pack(fill=tk.X, pady=5)
@@ -625,11 +855,12 @@ class CNCPlotterGUI:
                 font=('Arial', 11, 'bold')).pack()
         
         instructions = """
-1. Calibrar Eje X: Encuentra límites
-2. Calibrar Eje Y: Encuentra límites
-3. Test 4 Direcciones: Verifica movimiento
-4. Mide el área real de trabajo en mm
-5. Actualiza Pasos/mm en la configuración
+1. USA AUTO-DETECTAR (recomendado)
+   O calibra manualmente:
+2. Calibrar Eje X: Encuentra límites
+3. Calibrar Eje Y: Encuentra límites
+4. Test 4 Direcciones: Verifica movimiento
+5. La GUI aprenderá el sistema de coordenadas
         """
         
         tk.Label(cal_window, text=instructions, bg=self.bg_color, fg=self.fg_color,

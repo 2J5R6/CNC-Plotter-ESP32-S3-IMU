@@ -16,9 +16,11 @@ def test_coordinate_conversion():
     steps_per_mm = 51.2
     
     def pixel_to_mm(px, py):
-        """Convertir pixeles a mm con inversion de Y"""
-        x_mm = px / scale_factor
-        y_mm = (canvas_height - py) / scale_factor
+        """Convertir pixeles a mm con origen en SUPERIOR DERECHA"""
+        # X invertido: izquierda canvas = derecha CNC (origen)
+        x_mm = (canvas_width - px) / scale_factor
+        # Y directo: arriba canvas = arriba CNC
+        y_mm = py / scale_factor
         return x_mm, y_mm
     
     def mm_to_steps(mm):
@@ -40,7 +42,7 @@ def test_coordinate_conversion():
     # Tests de las 4 esquinas
     test_points = [
         ("Esquina SUPERIOR IZQUIERDA (canvas)", 0, 0),
-        ("Esquina SUPERIOR DERECHA (canvas)", 600, 0),
+        ("Esquina SUPERIOR DERECHA (canvas) = ORIGEN CNC", 600, 0),
         ("Esquina INFERIOR IZQUIERDA (canvas)", 0, 600),
         ("Esquina INFERIOR DERECHA (canvas)", 600, 600),
         ("CENTRO", 300, 300),
@@ -69,7 +71,7 @@ def test_coordinate_conversion():
     # Verificacion visual
     print("CANVAS (Pantalla):")
     print()
-    print("    (0,0) -------- X+ -------- (600,0)")
+    print("    (0,0) -------- X+ -------- (600,0) <- ORIGEN CNC AQUI")
     print("      |                            |")
     print("      | Y+                         |")
     print("      |                            |")
@@ -79,22 +81,22 @@ def test_coordinate_conversion():
     print("      |                            |")
     print("    (0,600) ------------------ (600,600)")
     print()
-    print("         ORIGEN CNC: (0,600) canvas")
+    print("         ORIGEN CNC: (600,0) canvas = SUPERIOR DERECHA")
     print()
     print()
     print("CNC (Fisico):")
     print()
-    print("    (0,150) -------------- (150,150)  <- Y=150mm ARRIBA")
+    print("    (150,0) -------------- (0,0)    <- ORIGEN CNC (Superior Derecha)")
     print("      |                        |")
-    print("      | Y+                     |")
+    print("      |                     X+ |")
     print("      |                        |")
     print("      |         CNC            |")
     print("      |        (75,75)         |")
     print("      |                        |")
-    print("      |                        |")
-    print("    (0,0) ---------------- (150,0)    <- Y=0mm ORIGEN")
+    print("      | Y+                     |")
+    print("    (150,150) ------------ (0,150)")
     print()
-    print("         ORIGEN CNC: (0,0) fisico")
+    print("         ORIGEN CNC: (0,0) = SUPERIOR DERECHA fisica")
     print()
     print("=" * 70)
     print()
@@ -103,24 +105,24 @@ def test_coordinate_conversion():
     print("TESTS DE VALIDACION:")
     print()
     
-    # Test 1: Dibujar arriba en canvas = arriba en CNC
-    px, py = 100, 50  # Arriba en canvas
+    # Test 1: Esquina superior derecha = origen CNC
+    px, py = 600, 0  # Superior derecha en canvas
     x_mm, y_mm = pixel_to_mm(px, py)
-    print(f"1. Dibujar ARRIBA en canvas (Y=50px)")
+    print(f"1. Esquina SUPERIOR DERECHA del canvas (origen CNC)")
     print(f"   Canvas: ({px}, {py})")
     print(f"   CNC: ({x_mm:.1f}, {y_mm:.1f}) mm")
-    print(f"   Esperado: Y cercano a {work_area_height}mm (arriba fisico)")
-    print(f"   Resultado: {'OK' if y_mm > 100 else 'ERROR'}")
+    print(f"   Esperado: (0, 0) mm - ORIGEN CNC")
+    print(f"   Resultado: {'OK' if x_mm == 0 and y_mm == 0 else 'ERROR'}")
     print()
     
-    # Test 2: Dibujar abajo en canvas = abajo en CNC
-    px, py = 100, 550  # Abajo en canvas
+    # Test 2: Izquierda del canvas = derecha del CNC
+    px, py = 0, 100  # Izquierda en canvas
     x_mm, y_mm = pixel_to_mm(px, py)
-    print(f"2. Dibujar ABAJO en canvas (Y=550px)")
+    print(f"2. Dibujar IZQUIERDA en canvas")
     print(f"   Canvas: ({px}, {py})")
     print(f"   CNC: ({x_mm:.1f}, {y_mm:.1f}) mm")
-    print(f"   Esperado: Y cercano a 0mm (origen fisico)")
-    print(f"   Resultado: {'OK' if y_mm < 50 else 'ERROR'}")
+    print(f"   Esperado: X cercano a {work_area_width}mm (lejos del origen)")
+    print(f"   Resultado: {'OK' if x_mm > 100 else 'ERROR'}")
     print()
     
     # Test 3: Centro debe estar en el centro
