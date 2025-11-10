@@ -269,9 +269,20 @@ class CNCPlotterGUI:
         for y in range(0, self.canvas_height + 1, grid_spacing):
             self.canvas.create_line(0, y, self.canvas_width, y, fill=self.grid_color, width=1)
         
-        # Origen
-        self.canvas.create_oval(2, 2, 8, 8, fill='#ff0000', outline='#ff0000')
-        self.canvas.create_text(15, 10, text="(0,0)", fill='#ff0000', font=('Arial', 8, 'bold'))
+        # Origen CNC (esquina INFERIOR izquierda del canvas)
+        origin_y = self.canvas_height - 5  # 5 píxeles desde abajo
+        self.canvas.create_oval(2, origin_y - 3, 8, origin_y + 3, fill='#ff0000', outline='#ff0000')
+        self.canvas.create_text(15, origin_y, text="(0,0) CNC", fill='#ff0000', font=('Arial', 8, 'bold'))
+        
+        # Indicadores de ejes
+        # Eje X (derecha)
+        self.canvas.create_line(10, origin_y, 40, origin_y, fill='#00ff00', width=2, arrow=tk.LAST)
+        self.canvas.create_text(45, origin_y, text="X+", fill='#00ff00', font=('Arial', 8, 'bold'))
+        
+        # Eje Y (arriba desde el origen)
+        self.canvas.create_line(5, origin_y, 5, origin_y - 30, fill='#0000ff', width=2, arrow=tk.LAST)
+        self.canvas.create_text(5, origin_y - 35, text="Y+", fill='#0000ff', font=('Arial', 8, 'bold'))
+
     
     def update_ports(self):
         """Actualizar lista de puertos seriales disponibles"""
@@ -370,9 +381,15 @@ class CNCPlotterGUI:
         pass
     
     def pixel_to_mm(self, px, py):
-        """Convertir coordenadas de píxeles a milímetros"""
+        """Convertir coordenadas de píxeles a milímetros
+        
+        IMPORTANTE: El canvas tiene origen en esquina SUPERIOR izquierda (0,0)
+        El CNC tiene origen en esquina INFERIOR izquierda (0,0)
+        Por lo tanto, invertimos el eje Y
+        """
         x_mm = px / self.scale_factor
-        y_mm = py / self.scale_factor
+        # Invertir Y: canvas Y=0 (arriba) -> CNC Y=max (arriba en físico)
+        y_mm = (self.canvas_height - py) / self.scale_factor
         return x_mm, y_mm
     
     def mm_to_steps(self, mm):

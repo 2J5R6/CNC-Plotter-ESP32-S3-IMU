@@ -1,6 +1,18 @@
-# CNC Controller - ESP32 S3
+# 🎨 CNC Plotter - ESP32 S3 + Interfaz Gráfica Python
 
-Sistema de control para CNC con 3 motores paso a paso 28BYJ-48 y sensor IMU MPU6050.
+Sistema completo de control CNC con 3 motores paso a paso 28BYJ-48, sensor IMU MPU6050 y **interfaz gráfica Python para dibujar con el mouse**.
+
+## ✨ Características Principales
+
+- ✅ **Control preciso** con motores 28BYJ-48 y drivers ULN2003
+- ✅ **Calibración automática** con sensor IMU MPU6050
+- ✅ **Interfaz gráfica Python** - Dibuja con el mouse y el CNC lo reproduce
+- ✅ **Comunicación serial** USB 115200 baud
+- ✅ **Guardar/Cargar dibujos** en formato JSON
+- ✅ **Control manual del lápiz** (pen up/down)
+- ✅ **Monitoreo en tiempo real** con consola serial
+
+---
 
 ## 🔧 Hardware Requerido
 
@@ -90,23 +102,82 @@ Instala estas librerías desde el Library Manager de Arduino IDE:
    - Presionar el botón de carga
    - Verificar en Monitor Serial (115200 baud)
 
+---
+
+## 🎨 Interfaz Gráfica Python
+
+### Instalación de la GUI
+
+1. **Instalar Python 3.8 o superior**
+   - Descargar de [python.org](https://www.python.org/downloads/)
+
+2. **Instalar dependencias**
+   ```bash
+   cd "Proyecto Final"
+   pip install -r requirements.txt
+   ```
+
+3. **Ejecutar la aplicación**
+   ```bash
+   python cnc_plotter_gui.py
+   ```
+
+### Uso de la GUI
+
+1. **Conectar al CNC**
+   - Selecciona el puerto COM de tu ESP32
+   - Clic en "🔌 Conectar"
+
+2. **Dibujar**
+   - Haz clic y arrastra en el canvas para dibujar
+   - Puedes hacer múltiples trazos
+
+3. **Enviar al CNC**
+   - Clic en "🎨 DIBUJAR EN CNC"
+   - El CNC reproducirá tu dibujo automáticamente
+
+4. **Guardar/Cargar**
+   - "💾 Guardar": Guarda tu dibujo como JSON
+   - "📂 Cargar": Carga un dibujo previo
+
+📖 **Manual completo**: Ver [GUI_MANUAL.md](GUI_MANUAL.md) para detalles y calibración
+
+---
+
 ## 📋 Comandos Disponibles
 
-Envía estos comandos por Monitor Serial (115200 baud):
+### Comandos Básicos (teclado o GUI)
 
 | Comando | Descripción |
 |---------|-------------|
 | `H` | **Home** - Regresar a posición origen (0, 0) |
 | `U` | **Pen Up** - Levantar lápiz |
-| `D` | **Pen Down** - Bajar lápiz |
-| `S` | **Square** - Dibujar un cuadrado |
-| `C` | **Circle** - Dibujar un círculo |
-| `T` | **Triangle** - Dibujar un triángulo |
-| `X` | **Test X** - Probar movimiento en eje X |
-| `Y` | **Test Y** - Probar movimiento en eje Y |
-| `Z` | **Test Z** - Probar movimiento en eje Z (lápiz) |
+| `B` | **Pen Down** - Bajar lápiz |
+| `R` | **Release** - Liberar motor Z |
 | `P` | **Position** - Mostrar posición actual |
 | `I` | **IMU** - Mostrar datos del sensor IMU |
+
+### Comandos con Parámetros (GUI automático)
+
+| Comando | Descripción | Ejemplo |
+|---------|-------------|---------|
+| `X<n>` | Mover X n pasos | `X100` (derecha), `X-50` (izquierda) |
+| `Y<n>` | Mover Y n pasos | `Y200` (abajo), `Y-100` (arriba) |
+| `Z<n>` | Mover Z n pasos | `Z50` (bajar), `Z-25` (subir) |
+
+### Comandos de Calibración
+
+| Comando | Descripción |
+|---------|-------------|
+| `C` | **Calibrar eje X** con IMU (busca límites) |
+| `D` | **Calibrar eje Y** con IMU (busca límites) |
+| `A` | **Test 4 direcciones** (verifica movimiento) |
+| `S` | **Dibujar cuadrado** de prueba |
+| `X` | **Test Motor X** (solo manual) |
+| `Y` | **Test Motor Y** (solo manual) |
+| `Z` | **Test Motor Z** (solo manual) |
+
+---
 
 ## ⚙️ Configuración Avanzada
 
